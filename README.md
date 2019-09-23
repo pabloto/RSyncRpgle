@@ -11,8 +11,8 @@
 	1. 5733-SC1 Installed
 	2. SSH server running on remote server
 	3. Open source tecnologies Installed
-	    RSync installed: yum install rsync
-	    for more information about prerequisite consult:
+	    Bash and RSync installed: yum install rsync bash
+	    for more information about this installation please consult:
 	    https://bitbucket.org/ibmi/opensource/src/master/
 
 ## Scope
@@ -66,12 +66,12 @@ Value | Description
 --- | --- 
 R | Recursive. RSync will syncronize all the files and subdirectory starting from this Directory.
 F | First Level. RSync will syncronize all the files starting from this Directory. The Subdirectory will be written in this files with RSyncFlag set to ? (UNKNOWN).
-? | Unknown. RSync will do nothing, You have to decide if you want to syncronize it by putting R or F or N (Not syncronize).
+? | Unknown. RSync will do nothing. You have to decide if you want to syncronize it by putting R or F or N (Not syncronize).
 N | Not Syncronize. RSync will do nothing. All the files and subdirectory in this directory will be ignored.
 
 ## Installation notes
 You can choose two kind of installation.
-1. If you have set into your pase path the directory /QOpenSys/pkgs/bin download the install.sh from Source directory into your home directory, then from pase run the script install.sh, and it ask to you where  you want to install.
+1. If you have set into your pase path the directory /QOpenSys/pkgs/bin download the install.sh from Source directory into your home directory, then from pase run the script install.sh, it require curl installed, and it ask where you want to install.
 
 2. Simply download the RSYNCRPGLE.SAVF and restore it where you want.
 
