@@ -1,0 +1,36 @@
+pgm
+
+  dcl var(&Library)  type(*char) len(10) 
+
+  SndUsrMsg Msg('Data library for RSync table:') MsgRpy(&Library)
+  ChkObj Obj(&Library) ObjType(*lib)
+  MonMsg MsgId(Cpf9801) Exec(Do)
+    SndUsrMsg Msg('Library doesn''t exist installation aborted.')
+    Return
+  EndDo
+
+  ChgCurLib Lib(&Library)
+
+  RunSqlStm SrcStmf('RSyncRpgle/DDL/RSync_Tables.sql')   +
+          Commit(*None) DatFmt(*Iso) TimFmt(*Iso)     
+  MonMsg MsgId(Cpf0000) Exec(Do)
+    SndUsrMsg Msg('Error on table creation. installation aborted.')
+    Return
+  EndDo                            
+
+  SndUsrMsg Msg('Program library for RSync program:') MsgRpy(&Library)
+  ChkObj Obj(&Library) ObjType(*lib)
+  MonMsg MsgId(Cpf9801) Exec(Do)
+    SndUsrMsg Msg('Library doesn''t exist installation aborted.')
+    Return
+  EndDo
+
+  ChgCurLib Lib(&Library)
+
+  CrtSqlRpgi obj(RSync01r)                                  +         
+           srcstmf('RSyncRpgle/Source/RSync01r.sqlrpglele') +                                             
+           commit(*none) objtype(*pgm) +                                            
+           text('RSync utility') +                             
+           Option(*xref) TgtRls(*current) DbgView(*source) 
+  
+endpgm
