@@ -70,7 +70,8 @@ F | First Level. RSync will syncronize all the files starting from this Director
 N | Not Syncronize. RSync will do nothing. All the files and subdirectory in this directory will be ignored.
 
 ## Installation notes
-You can choose two kind of installation.
+You can choose two kind of installation.  
+
 1. If you have set into your pase path the directory /QOpenSys/pkgs/bin download the install.sh from Source directory into your home directory, then from pase run the script install.sh, it require curl installed, and it ask where you want to install.
 
 2. Simply download the RSYNCRPGLE.SAVF and restore it where you want.
