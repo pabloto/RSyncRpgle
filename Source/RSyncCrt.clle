@@ -28,7 +28,7 @@ pgm
   ChgCurLib Lib(&Library)
 
   CrtSqlRpgi obj(RSync01r)                                  +         
-           srcstmf('RSyncRpgle/Source/RSync01r.sqlrpglele') +                                             
+           srcstmf('RSyncRpgle/Source/RSync01r.sqlrpgle') +                                             
            commit(*none) objtype(*pgm) +                                            
            text('RSync utility') +                             
            Option(*xref) TgtRls(*current) DbgView(*source) 

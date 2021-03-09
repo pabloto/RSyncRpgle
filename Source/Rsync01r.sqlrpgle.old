@@ -98,16 +98,10 @@ Dcl-Pr lstat64 Int(10) ExtProc('lstat64');
   *n    likeds(Stat64Ds);
 End-Pr lstat64;
 
-Dcl-Pr SndDtaQ ExtPgm('QSNDDTAQ');                  
-  DataQueue Char(10) Const;                         
-  DataQueueLib Char(10) Const;                      
-  DataLen Packed(5 :0) Const;                       
-  Data Char(32767) Const Options(*Varsize);         
-End-Pr SndDtaQ; 
-
-Dcl-pr usleep uns(10) extproc('usleep');
-  *n uns(10) value; // millisecs
-end-pr;
+// Check if is dir of file
+Dcl-Pr S_IsDir ind;
+  *n uns(10) value; //‚mode
+End-Pr;
 
 // Command Exec                              
 Dcl-Pr Cmd Int(10) ExtProc('system');
@@ -132,18 +126,12 @@ Dcl-S Parm3 VarChar(1000);
 // RSync setup value
 Dcl-S  ConfigurationId  VarChar(20);
 Dcl-S  RemoteServer     VarChar(80);
-Dcl-S  RemoteRoot       VarChar(640);
 Dcl-S  RemotePort       Zoned(5);
 Dcl-S  ToSite           VarChar(100);
 Dcl-S  FromSite         VarChar(100);
 Dcl-S  Directory        VarChar(50);
 Dcl-S  Root             Varchar(640);
-Dcl-S  CertificatePath  VarChar(300);
-Dcl-S  Certificate      VarChar(100);
-Dcl-S  UserKnownHosts   VarChar(100);
-Dcl-S  GlobalKnownHosts VarChar(100);
-Dcl-S  DtaqName         VarChar(100);
-Dcl-S  DtaqLib          VarChar(100);
+Dcl-S  Certificate      VarChar(500);
 
 // Work Variabile
 Dcl-Ds Stat64Ds Qualified;
@@ -186,11 +174,6 @@ Dcl-Ds DirectoryEntry  Qualified Based(DirEntryPtr);
   NameLen         Uns(10);
   Name            Char(640);
 End-Ds DirectoryEntry;
-
-Dcl-Ds DsAttr     Qualified;
-  Stmf                    VarChar(640);
-  Ccsid                   Char(5);
-End-Ds DsAttr;
 
 Dcl-S PaseRSync           Char(32767) inz;
 Dcl-S RSyncElement        VarChar(640);
@@ -313,11 +296,11 @@ For IdxDir = 1 to NumberOfDirToSinc;
     DeleteOptions = '--delete ';
   EndIf;
 
-  ToSite = RSyncUser + '@' + %Trim(RemoteServer) + ':' + RemoteRoot + ' ';
+  ToSite = RSyncUser + '@' + %Trim(RemoteServer) + ':/ ';
   FromSite = '"' + DirectoryToSync(IdxDir).Name + '" ';
 
   // Invoke RSync
-  Parm3 = 'rsync -avRqhpe "ssh ' + CertificatePath + ' -p' + %Char(RemotePort) + '"  '+  
+  Parm3 = 'rsync -avRqhpe "ssh ' + Certificate + ' -p' + %Char(RemotePort) + '"  '+  
           FromSite + ToSite + DeleteOptions +
           NoSubDirectory + ' --log-file=' + LogFile + 
           ' --exclude-from ' +A+ Exclusion +A+ X'00';
@@ -325,11 +308,6 @@ For IdxDir = 1 to NumberOfDirToSinc;
   Qp2Shell(Parm1 :Parm2 :Parm3);
 
 EndFor;
-
-// Setting CCSID to remote
-If SetCCSID() < 0;
-  RSyncLog(INFO :'RSync Errore set ccsid su remoto');
-EndIf;
 
 // Write Record to better read RSync Log
 RSyncLog(INFO :'RSync End of Syncronization.');
@@ -358,10 +336,6 @@ Dcl-Proc RSyncExclusionList;
           Order by 1;
 
   Exec Sql Open ExclCur;
-  If SqlState <> '00000' or Directory = '';
-    RSyncLog(ERROR :'Error: Apertura cursore su RSync00f non riuscita!'); 
-    Return -1;
-  EndIf;
 
   Dow not %Shtdn();
 
@@ -465,40 +439,6 @@ Dcl-Proc RSyncSetup;
     Return -1;
   EndIf;
 
-  // RemoteRoot is the directory of the remote server
-  Exec Sql 
-    Select RValue into :RemoteRoot
-      from RSyncSt00f 
-      where ConfigurationId = :ConfigurationId and 
-            ConfigurationName = 'REMOTEROOT';
-  If SqlState <> '00000' or Root = '';
-    RSyncLog(ERROR :'Error: Missing REMOTEROOT value into RSYNCST00F. Abort!');
-    Return -1;
-  EndIf;
-
-  // Attribute GlobalKnownHosts is if set to N means that you don't want to delete files in RSyncRoot
-  Exec Sql 
-    Select RValue into :GlobalKnownHosts
-      from RSyncSt00f 
-      where ConfigurationId = :ConfigurationId and 
-            ConfigurationName = 'GLOBALKNOWNHOSTS';
-  If SqlState <> '00000';
-    RSyncLog(INFO :'Missing GlobalKnownHosts value into RSYNCST00F. ');
-    Return -1;
-  EndIf;
-  GlobalKnownHosts = '-oGlobalKnownHostsFile=' + GlobalKnownHosts;
-
-  // Attribute UserKnownHostsFile is if set to N means that you don't want to delete files in RSyncRoot
-  Exec Sql 
-    Select RValue into :UserKnownHosts
-      from RSyncSt00f 
-      where ConfigurationId = :ConfigurationId and 
-            ConfigurationName = 'USERKNOWNHOSTS';
-  If SqlState <> '00000';
-    RSyncLog(INFO :'Missing USERKNOWNHOSTS value into RSYNCST00F. ');
-    Return -1;
-  EndIf;
-  UserKnownHosts = '-oUserKnownHostsFile=' + UserKnownHosts;
 
   // Attribute Certificate is if set to N means that you don't want to delete files in RSyncRoot
   Exec Sql 
@@ -510,9 +450,6 @@ Dcl-Proc RSyncSetup;
     RSyncLog(INFO :'Missing CERTIFICATE value into RSYNCST00F. ');
     Return -1;
   EndIf;
-  Certificate = '-oIdentityFile=' + Certificate;
-
-  CertificatePath = GlobalKnownHosts + ' ' + UserKnownHosts + ' ' + Certificate;
 
   // Attribute DeleteRootFile if set to N means that you don't want to delete files in RSyncRoot
   Exec Sql 
@@ -537,30 +474,6 @@ Dcl-Proc RSyncSetup;
     Return -1;
   EndIf;
 
-  // Attribute RSyncUser is the user you want use to doing the rsync, between two IBM I I suggest to use QSECOFR 
-  //  to replicate all authorization of the stmf
-  Exec Sql 
-    Select RValue into :DtaqName
-      from RSyncSt00f 
-      where ConfigurationId = :ConfigurationId and 
-            ConfigurationName = 'DTAQNAME';
-  If SqlState <> '00000' or DtaqName = '';
-    RSyncLog(ERROR :'Error: Missing Dtaq Value into RSYNCST00F. Abort!');
-    Return -1;
-  EndIf;
-
-  Exec Sql 
-    Select RValue into :DtaqLib
-      from RSyncSt00f 
-      where ConfigurationId = :ConfigurationId and 
-            ConfigurationName = 'DTAQLIB';
-  If SqlState <> '00000' or DtaqLib = '';
-    RSyncLog(ERROR :'Error: Missing Dtaq Value into RSYNCST00F. Abort!');
-    Return -1;
-  EndIf;
-  Command = 'CrtDtaQ DtaQ(' + DtaqLib + '/' + DtaqName + ') MaxLen(700) +
-        Text(' +A+ 'Invio informazione ccsid a sistema remoto(slave)' +A+ ')';
-  Cmd(Command);
 
   Return 0;
 
@@ -570,7 +483,7 @@ End-Proc RSyncSetup;
 Dcl-Proc CheckForNewDirectory;
   Dcl-Pi CheckForNewDirectory Int(10);
   End-Pi CheckForNewDirectory;
-  Dcl-s  WorkDir Varchar(640);
+  
 // ____________________________________________________________                                                  
 
   IdxDir = 1;
@@ -583,19 +496,12 @@ Dcl-Proc CheckForNewDirectory;
   DirectoryToSync(IdxDir).Del     = DeleteRootFile;
 
   Dow Not %Shtdn();
-
-    WorkDir = DirectoryToSync(IdxDir).Name;
-    Exec Sql 
-      Declare ListDir cursor for
-        Select path_name
-          From Table(
-              QSys2.Ifs_Object_Statistics(:WorkDir, 'NO', '*ALLDIR', ''))
-          Order by 1;
-    Exec Sql Open ListDir;
-    If SqlState <> '00000';
-      LogMsg = 'Error in Open Directory: ' + SqlState;
+    
+    DirectoryPtr =  OpenDir(DirectoryToSync(IdxDir).Name);
+    If DirectoryPtr = *Null;
+      P_Errno = Sys_Errno();
+      LogMsg = 'Error in Open Directory: ' + %Str(StrError(Errno));
       RSyncLog(ERROR :LogMsg);
-      Exec Sql Close ListDir;
       Return -1;
     EndIf;
 
@@ -605,7 +511,7 @@ Dcl-Proc CheckForNewDirectory;
       Return -1;
     EndIf;
 
-    Exec Sql Close ListDir;
+    CloseDir(%Addr(DirectoryToSync(IdxDir).Name));
 
     // Once Read the Directory set the analize flag to YES
     DirectoryToSync(IdxDir).Analize = 'Y';
@@ -669,8 +575,6 @@ Dcl-Proc CheckForDelDirectory;
       P_Errno = Sys_Errno();
       LogMsg = 'Directory: ' + DirectoryToCheck + ' not found: ' + %Str(StrError(Errno));
       RSyncLog(ERROR :LogMsg);
-      Exec Sql 
-        Close RSyncDel;
       Return -1;
     EndIf;
 
@@ -695,32 +599,46 @@ Dcl-Proc ReadDirectory;
   // Read the directory opened
   Dow not %Shtdn();
 
-    Exec Sql Fetch next from ListDir into :WorkStmf;
-    If SqlState = '02000';
+    DirEntryPtr =  ReadDir(DirectoryPtr);
+    If DirEntryPtr = *Null;
       NumberOfSubDir = IdxSubtree;
       Return 0;
     EndIf;
-    If SqlState <> '00000';
-      LogMsg = 'Error in fetch: ' + SqlState;
-      RSyncLog(ERROR :LogMsg);
-      Return -1;
-    EndIf;
-    If WorkStmf = DirectoryToSync(CurrentIndex).Name;
+
+    DirectoryEntry.Name = %SubSt(DirectoryEntry.Name :1 :DirectoryEntry.NameLen);
+
+    If DirectoryEntry.Name  = '.' or DirectoryEntry.Name  = '..';
       Iter;
     EndIf;
 
-    IdxSubtree +=1;
-    DirectorySubTree(IdxSubtree).Flag = 'N';
-    DirectorySubTree(IdxSubtree).Name = WorkStmf;
+    If DirectoryToSync(CurrentIndex).Name <> '/';
+      WorkStmf = DirectoryToSync(CurrentIndex).Name + '/' + %SubSt(DirectoryEntry.Name :1 :DirectoryEntry.NameLen);
+    Else;
+      WorkStmf = DirectoryToSync(CurrentIndex).Name + %SubSt(DirectoryEntry.Name :1 :DirectoryEntry.NameLen);
+    EndIf;
+
+    // get file or directory informations, I use it to know if it is a file or a Directory
+    If lstat64(WorkStmf :Stat64Ds) = -1;
+      P_Errno = Sys_Errno();
+      LogMsg = 'Error in lstat64 on: ' + WorkStmf + %Str(StrError(Errno));
+      RSyncLog(ERROR :LogMsg);
+      Return -1;
+    EndIf;
+
+    // Verify if this entry is a stmf or a Directory 
+    If S_IsDir(Stat64Ds.Mode);
+      IdxSubtree        +=1;
+      DirectorySubTree(IdxSubtree).Flag = 'N';
+      DirectorySubTree(IdxSubtree).Name = WorkStmf;
+    Else;
+      // If it's a strem file ignore it
+      Iter;
+    EndIf;
 
     // Check for which kind of Syncronization you want for this directory
     If CheckSyncronizationSetting() < 0;
       Return -1;
     EndIf;
-
-    // If DirectorySubTree(IdxSubtree).Flag = RECURSIVE;
-    //   Leave;
-    // EndIf;
 
   EndDo;  
 
@@ -785,85 +703,53 @@ Dcl-Proc CheckSyncronizationSetting;
     Return 0;
 
 End-Proc CheckSyncronizationSetting;
-
 // ____________________________________________________________                                                  
-Dcl-Proc SetCCSID;
-  Dcl-Pi SetCCSID Int(10);
-  End-Pi SetCCSID;
-  // ____________________________________________________________                                                  
+// This tests a file mode to see if a file is a directory.
 
-  Parm3 = 'rm ' + Directory + '/setccsid.txt' ;
+// Here is the C code we're trying to duplicate:
+// #define _S_IFDIR 0040000 */
+// #define S_ISDIR(mode) (((mode) & 0370000) == _S_IFDIR)
 
-  Qp2Shell(Parm1 :Parm2 :Parm3);
+//‚ 1) ((mode) & 0370000) takes the file's mode and performs a
+// bitwise AND with the octal constant 0370000. In binary,
+// that constant looks like: 00000000000000011111000000000000
+// The effect of this code is to turn off all bits in the
+// mode, except those marked with a '1' in the binary bitmask.
 
-  Parm3 = 'grep ' +A+ '<f' +A+ ' ' + LogFile + ' |  awk ' +A+ '{ print $5 }' +A+ 
-            ' | sort | uniq -c | awk '+A+ '{ print $2 }'+A+ ' > ' + Directory + '/setccsid.txt' ;
+// 2) ((result of #1) == _S_IFDIR) What this does is compare
+// the result of step 1, above with the _S_IFDIR, which
+// is defined to be the octal constant 0040000. In decimal,
+// that octal constant is 16384.
+// ____________________________________________________________                                                  
+Dcl-Proc S_ISDIR;
+Dcl-Pi S_ISDIR ind;
+  mode uns(10) value;
+End-Pi;
+Dcl-Ds *n;
+  dirmode uns(10) pos(1);
+  byte1 char(1) pos(1);
+  byte2 char(1) pos(2);
+  byte3 char(1) pos(3);
+  byte4 char(1) pos(4);
+End-Ds;
+// ____________________________________________________________                                                  
 
-  Qp2Shell(Parm1 :Parm2 :Parm3);
+  // Turn off bits in the mode, as in step (1) above.
 
-  Exec Sql
-    Declare Global Temporary table StmfCcsId
-      (Stmf varchar(640) NOT NULL ccsid 1208)
-      with replace;
+  DirMode = Mode;
+  Byte1 =  %BitAnd(Byte1: %BitNot(x'FF'));
+  Byte2 =  %BitAnd(Byte2: %BitNot(x'FE'));
+  Byte3 =  %BitAnd(Byte3: %BitNot(x'0F'));
+  Byte4 =  %BitAnd(Byte4: %BitNot(x'FF'));
 
-  Command = 'CpyFrmImpf FromStmf(' +A+ Directory + '/setccsid.txt' +A+ ') +   
-           ToFile(StmfCcsId) MbrOpt(*Replace) RcdDlm(*ALL) StrDlm(*None)';
+  // Compare the result to 0040000, and return true or false.
+  If dirmode = 16384;
+    Return    *On;
+  Else;
+    Return    *Off;
+  Endif;
 
-  If Cmd(Command) < 0;
-    RSyncLog(ERROR :'Errore nella copia da setccsid.txt al file fisico');
-    Return -1;
-  EndIf;
-
-  Exec Sql 
-    Declare CcsIdCur cursor for
-      Select Stmf from stmfccsid;
-
-  Exec Sql Open CcsIdCur;
-
-  If SqlState <> '00000';
-    RSyncLog(ERROR :'Error: Apertura cursore su StmfCcsId non riuscita!'); 
-    Return -1;
-  EndIf;
-
-  Dow not %Shtdn();  
-
-    DsAttr = ' ';
-
-    Exec Sql
-      Fetch next from CcsIdCur into :DsAttr.Stmf;
-    If SqlState = '02000';
-      Leave;
-    EndIf;
-
-    // Reperisco il CCSID del File
-    Exec Sql
-      Select CCSID into :DsAttr.CCsId 
-            From Table(QSys2.Ifs_Object_Statistics(:Dsattr.Stmf));
-
-    If SqlState <> '00000';
-      RSyncLog(ERROR :'Error: Lettura CCSID per file: ' + Dsattr.Stmf + ' non riuscita verificare.'); 
-      Iter;
-    EndIf;
-
-    // Invio a sistema remoto solo i ccsid <> da 819
-    If DsAttr.CcsId = '819';
-      Iter;
-    EndIf;
-    
-    SndDtaq(DtaqName :DtaqLib :%Len(DsAttr) :DsAttr);
-
-    USleep(30000);
-
-    RSyncLog(INFO :'Setccsid: for ' + DsAttr.Stmf + ' to: ' + DsAttr.Ccsid + '.');
-  
-  EndDo;
-
-  Exec Sql Close CcsIdCur;
-
-  Return 0;
-
-End-Proc SetCCSID;
-
+End-Proc S_ISDIR;
 // ____________________________________________________________                                                  
 Dcl-Proc RSyncLog;
   Dcl-Pi RSyncLog;
