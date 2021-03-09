@@ -107,4 +107,4 @@ so you have to decide by setting the flag 'R', 'F', 'N' in RSyncFlag, and so on.
 ## Contribution Agreement
 If you contribute code to this project, you are implicitly allowing your code to be distributed under the MIT license. You are also implicitly verifying that all code is your original work.
 
-People - Paolo Salvatore
+People - Paolo Salvatore.
